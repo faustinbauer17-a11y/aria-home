@@ -332,11 +332,11 @@
     </div>
     <div class="weather-chip">
       <div>
-        <div class="temp">21°C</div>
+        <div class="temp" id="wxTemp">--°</div>
       </div>
       <div>
-        <div class="wlabel">Outside · Clear</div>
-        <div class="wlabel">Wind 8 km/h</div>
+        <div class="wlabel" id="wxLabel">Locating…</div>
+        <div class="wlabel" id="wxWind">Wind -- </div>
       </div>
     </div>
   </div>
@@ -531,7 +531,11 @@
     target: 22,
     lightsOn: 6,
     lightsTotal: 14,
-    media: false
+    media: false,
+    outsideTemp: null,
+    outsideDesc: null,
+    outsideWind: null,
+    locationName: null
   };
 
   function speak(text){
@@ -646,6 +650,14 @@
       response = "Stopping playback.";
     } else if(/what.*time|current time/.test(cmd)){
       response = "It's " + timeString() + ".";
+    } else if(/weather|how.*(cold|hot|warm) is it|outside temp/.test(cmd)){
+      if(state.outsideTemp !== null){
+        response = "It's " + Math.round(state.outsideTemp) + " degrees and " + state.outsideDesc
+          + (state.locationName ? " in " + state.locationName : " outside") + ", with wind at "
+          + Math.round(state.outsideWind) + " km/h.";
+      } else {
+        response = "I don't have a live weather reading yet — location access may still be pending.";
+      }
     } else if(/status report|system status|status check/.test(cmd)){
       response = "Security is " + (state.security ? "armed" : "disarmed") + ", climate holding at "
         + state.temp.toFixed(1) + " degrees, and " + state.lightsOn + " of " + state.lightsTotal + " light zones are active.";
@@ -783,6 +795,7 @@
     wakeBtn.classList.add('armed');
     wakeBtn.textContent = '● Wake Word Armed';
     setActive(false);
+    try{ localStorage.setItem('aria-wake-enabled', 'true'); }catch(e){}
   }
 
   function stopWakeListening(){
@@ -793,6 +806,7 @@
     wakeBtn.classList.remove('armed');
     wakeBtn.textContent = '🛌 Enable Wake Word';
     setActive(false);
+    try{ localStorage.setItem('aria-wake-enabled', 'false'); }catch(e){}
   }
 
   wakeBtn.addEventListener('click', function(){
@@ -803,8 +817,103 @@
     }
   });
 
+  // Auto-resume wake word if it was left on last time.
+  // Browsers may block mic auto-start without a fresh tap — if so, we surface
+  // a one-tap "resume" prompt instead of silently failing.
+  (function tryAutoResumeWake(){
+    let wasEnabled = false;
+    try{ wasEnabled = localStorage.getItem('aria-wake-enabled') === 'true'; }catch(e){}
+    if(!wasEnabled || !SpeechRecognitionImpl) return;
+
+    wakeBtn.textContent = '● Resuming…';
+    wakeBtn.classList.add('armed');
+    try{
+      wakeRecognizer = buildWakeRecognizer();
+      wakeRecognizer.start();
+      wakeModeOn = true;
+      wakeBtn.textContent = '● Wake Word Armed';
+      setActive(false);
+    }catch(e){
+      // Browser blocked auto-start (needs a fresh user gesture) — ask for one tap.
+      wakeModeOn = false;
+      wakeBtn.classList.remove('armed');
+      wakeBtn.textContent = '🛌 Tap to Resume Wake Word';
+    }
+  })();
+
   // idle wave by default until a command is processed
   setActive(false);
+
+  // ===================== LIVE WEATHER (real geolocation, no API key) =====================
+  const wxTemp = document.getElementById('wxTemp');
+  const wxLabel = document.getElementById('wxLabel');
+  const wxWind = document.getElementById('wxWind');
+
+  // WMO weather codes -> short description
+  const WMO = {
+    0:'Clear', 1:'Mostly Clear', 2:'Partly Cloudy', 3:'Overcast',
+    45:'Fog', 48:'Fog',
+    51:'Light Drizzle', 53:'Drizzle', 55:'Heavy Drizzle',
+    56:'Freezing Drizzle', 57:'Freezing Drizzle',
+    61:'Light Rain', 63:'Rain', 65:'Heavy Rain',
+    66:'Freezing Rain', 67:'Freezing Rain',
+    71:'Light Snow', 73:'Snow', 75:'Heavy Snow', 77:'Snow Grains',
+    80:'Rain Showers', 81:'Rain Showers', 82:'Violent Showers',
+    85:'Snow Showers', 86:'Snow Showers',
+    95:'Thunderstorm', 96:'Thunderstorm', 99:'Thunderstorm'
+  };
+
+  async function fetchWeather(lat, lon){
+    try{
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon
+        + '&current=temperature_2m,weather_code,wind_speed_10m&temperature_unit=celsius&wind_speed_unit=kmh';
+      const res = await fetch(url);
+      const data = await res.json();
+      const c = data.current;
+      state.outsideTemp = c.temperature_2m;
+      state.outsideWind = c.wind_speed_10m;
+      state.outsideDesc = WMO[c.weather_code] || 'Unknown';
+
+      wxTemp.textContent = Math.round(c.temperature_2m) + '°C';
+      wxLabel.textContent = 'Outside · ' + state.outsideDesc;
+      wxWind.textContent = 'Wind ' + Math.round(c.wind_speed_10m) + ' km/h';
+    }catch(e){
+      wxLabel.textContent = 'Weather unavailable';
+      wxWind.textContent = '';
+    }
+  }
+
+  async function reverseGeocode(lat, lon){
+    try{
+      const res = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=en');
+      const data = await res.json();
+      state.locationName = data.city || data.locality || data.principalSubdivision || null;
+    }catch(e){ /* non-critical, weather still works without a place name */ }
+  }
+
+  function initWeather(){
+    if(!('geolocation' in navigator)){
+      wxLabel.textContent = 'Location unsupported';
+      wxWind.textContent = '';
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        fetchWeather(latitude, longitude);
+        reverseGeocode(latitude, longitude);
+      },
+      (err) => {
+        wxLabel.textContent = 'Location access denied';
+        wxWind.textContent = 'Enable location to see local weather';
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 }
+    );
+  }
+
+  initWeather();
+  // Refresh every 15 minutes while the app stays open
+  setInterval(initWeather, 15 * 60 * 1000);
 
   // Register service worker for offline caching / installability
   if('serviceWorker' in navigator){
