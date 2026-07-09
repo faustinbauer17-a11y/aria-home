@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ARIA // Home Systems</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#050a0f">
+
+<!-- iOS home-screen support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="A.R.I.A.">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<!-- Android / general -->
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep: #050a0f;
+    --bg-panel: #0a141c;
+    --bg-panel-2: #0e1c26;
+    --line: #16323d;
+    --cyan: #4ef0e8;
+    --cyan-dim: #1d5c5e;
+    --blue: #2f8fff;
+    --amber: #ffb238;
+    --text: #d7f3f1;
+    --text-dim: #5c8892;
+    --text-dimmer: #315058;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    overflow-x:hidden;
+  }
+  body{
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(47,143,255,0.08), transparent 60%),
+      radial-gradient(ellipse at 50% 100%, rgba(78,240,232,0.05), transparent 60%),
+      var(--bg-deep);
+    min-height:100vh;
+  }
+  ::selection{ background: var(--cyan); color:#001414; }
+
+  /* scanline / grid texture */
+  .grid-overlay{
+    position:fixed; inset:0; pointer-events:none; z-index:1;
+    background-image:
+      linear-gradient(rgba(78,240,232,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(78,240,232,0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%);
+  }
+
+  .frame{
+    position:relative; z-index:2;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 28px 60px;
+  }
+
+  /* ===== Top bar ===== */
+  .topbar{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding-bottom:18px; border-bottom:1px solid var(--line);
+    margin-bottom: 34px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:12px;
+  }
+  .brand-mark{
+    width:34px;height:34px; border:1.5px solid var(--cyan);
+    border-radius:50%; position:relative; flex-shrink:0;
+  }
+  .brand-mark::before{
+    content:''; position:absolute; inset:6px; border:1px solid var(--cyan-dim); border-radius:50%;
+  }
+  .brand-mark::after{
+    content:''; position:absolute; inset:14px; background: var(--cyan); border-radius:50%;
+    box-shadow: 0 0 10px 2px var(--cyan);
+  }
+  .brand-text .name{
+    font-family:'Orbitron', sans-serif; font-weight:700; font-size:20px;
+    letter-spacing:3px; color:var(--text);
+  }
+  .brand-text .sub{
+    font-size:12px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase;
+  }
+  .status-cluster{ text-align:right; }
+  .clock{
+    font-family:'Share Tech Mono', monospace; font-size:34px; color:var(--cyan);
+    letter-spacing:2px; line-height:1;
+    text-shadow: 0 0 14px rgba(78,240,232,0.35);
+  }
+  .date-line{
+    font-size:12px; letter-spacing:2px; color:var(--text-dim); margin-top:6px; text-transform:uppercase;
+  }
+  .sys-status{
+    margin-top:8px; font-size:11px; letter-spacing:1.5px; color:var(--text-dimmer);
+    display:flex; gap:14px; justify-content:flex-end;
+  }
+  .sys-status span{ color: var(--cyan); }
+
+  /* ===== Greeting row ===== */
+  .greeting{
+    display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 40px;
+    flex-wrap:wrap; gap:20px;
+  }
+  .greeting h1{
+    font-family:'Orbitron', sans-serif; font-weight:500; font-size:26px;
+    margin:0 0 6px; letter-spacing:1px; color:var(--text);
+  }
+  .greeting h1 .accent{ color:var(--cyan); }
+  .greeting p{
+    margin:0; color:var(--text-dim); font-size:15px; letter-spacing:0.5px; max-width:520px;
+  }
+  .weather-chip{
+    display:flex; align-items:center; gap:14px;
+    border:1px solid var(--line); background:rgba(78,240,232,0.03);
+    padding:10px 18px; border-radius:2px;
+  }
+  .weather-chip .temp{ font-family:'Share Tech Mono', monospace; font-size:26px; color:var(--text); }
+  .weather-chip .wlabel{ font-size:11px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; }
+
+  /* ===== Core visualizer ===== */
+  .core-zone{
+    position:relative;
+    display:flex; align-items:center; justify-content:center;
+    margin: 10px auto 46px;
+    height: 420px;
+  }
+  .ring{
+    position:absolute; border-radius:50%; border:1px solid var(--line);
+  }
+  .ring.r1{ width:420px; height:420px; animation: spin 60s linear infinite; border-style:dashed; border-color: var(--text-dimmer); }
+  .ring.r2{ width:340px; height:340px; animation: spin-rev 46s linear infinite; }
+  .ring.r3{ width:260px; height:260px; border-color: var(--cyan-dim); }
+  .ring .tick{
+    position:absolute; width:2px; height:10px; background:var(--cyan-dim); left:50%; top:-1px;
+    transform-origin: 1px 210px;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+  @keyframes spin-rev{ to{ transform: rotate(-360deg); } }
+
+  .core-canvas-wrap{
+    position:relative; width:210px; height:210px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #coreCanvas{ position:absolute; inset:0; }
+  .core-label{
+    position:relative; z-index:2; text-align:center;
+    font-family:'Orbitron', sans-serif; letter-spacing:3px;
+  }
+  .core-label .status{ font-size:12px; color:var(--cyan); text-transform:uppercase; }
+  .core-label .pct{ font-size:11px; color:var(--text-dimmer); margin-top:4px; letter-spacing:2px;}
+
+  .core-zone .callout{
+    position:absolute; font-family:'Share Tech Mono', monospace; font-size:11px;
+    color:var(--text-dimmer); letter-spacing:1px;
+  }
+  .callout.cta{ top:18px; left:calc(50% - 300px); }
+  .callout.ctb{ bottom:18px; right:calc(50% - 300px); }
+
+  /* ===== Module grid ===== */
+  .section-label{
+    font-family:'Orbitron', sans-serif; font-size:12px; letter-spacing:4px;
+    color: var(--text-dim); text-transform:uppercase; margin: 0 0 16px 2px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .section-label::after{
+    content:''; flex:1; height:1px; background: var(--line);
+  }
+
+  .modules{
+    display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:44px;
+  }
+  @media (max-width:760px){ .modules{ grid-template-columns: repeat(2,1fr);} }
+  @media (max-width:480px){ .modules{ grid-template-columns: 1fr;} }
+
+  .module{
+    position:relative;
+    border:1px solid var(--line);
+    background: linear-gradient(180deg, rgba(14,28,38,0.6), rgba(10,20,28,0.4));
+    padding:18px 18px 16px;
+    transition: border-color .2s ease, transform .2s ease;
+  }
+  .module:hover{ border-color: var(--cyan-dim); transform: translateY(-2px); }
+  .module::before{
+    content:''; position:absolute; top:0; left:0; width:18px; height:1px; background: var(--cyan);
+  }
+  .module::after{
+    content:''; position:absolute; top:0; left:0; width:1px; height:18px; background: var(--cyan);
+  }
+  .module .m-head{
+    display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;
+  }
+  .module .m-title{
+    font-family:'Orbitron', sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color: var(--text);
+  }
+  .module .m-icon{ width:26px; height:26px; opacity:0.9; }
+  .module .m-value{
+    font-family:'Share Tech Mono', monospace; font-size:28px; color:var(--cyan); line-height:1;
+    text-shadow: 0 0 10px rgba(78,240,232,0.25);
+  }
+  .module .m-meta{
+    font-size:12px; color:var(--text-dim); letter-spacing:1px; margin-top:6px;
+  }
+  .module .m-bar{
+    margin-top:14px; height:3px; width:100%; background: var(--line); position:relative; overflow:hidden;
+  }
+  .module .m-bar span{
+    position:absolute; left:0; top:0; bottom:0; background: var(--cyan);
+  }
+  .module.state-alert .m-value{ color: var(--amber); text-shadow:0 0 10px rgba(255,178,56,0.3); }
+  .module.state-alert .m-bar span{ background: var(--amber); }
+  .module.state-off .m-value{ color: var(--text-dimmer); text-shadow:none; }
+
+  .dot{
+    width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:6px;
+    background: var(--cyan); box-shadow:0 0 6px var(--cyan);
+  }
+  .dot.amber{ background:var(--amber); box-shadow:0 0 6px var(--amber); }
+  .dot.dim{ background:var(--text-dimmer); box-shadow:none; }
+
+  /* ===== Voice / listening strip ===== */
+  .listen-strip{
+    border:1px solid var(--line);
+    background: rgba(78,240,232,0.03);
+    padding:16px 22px;
+    display:flex; align-items:center; gap:18px;
+  }
+  .listen-strip .lbl{
+    font-family:'Orbitron', sans-serif; font-size:11px; letter-spacing:3px; color:var(--text-dim); text-transform:uppercase; white-space:nowrap;
+  }
+  .wave{ display:flex; align-items:center; gap:3px; height:26px; flex:1; }
+  .wave i{
+    display:block; width:3px; background: var(--cyan); border-radius:1px;
+    animation: bar 1.2s ease-in-out infinite;
+    opacity:0.85;
+  }
+  @keyframes bar{
+    0%,100%{ height:4px; }
+    50%{ height:22px; }
+  }
+  .listen-strip .say{
+    font-size:13px; color:var(--text-dimmer); letter-spacing:0.5px; font-family:'Share Tech Mono', monospace;
+    white-space:nowrap;
+  }
+
+  footer{
+    margin-top:30px; text-align:center; font-size:11px; letter-spacing:2px;
+    color: var(--text-dimmer); text-transform:uppercase;
+  }
+
+  #micBtn{
+    font-family:'Orbitron', sans-serif; font-size:11px; letter-spacing:3px; color:var(--text-dim);
+    text-transform:uppercase; white-space:nowrap; background:transparent; border:1px solid var(--line);
+    padding:8px 14px; cursor:pointer; transition: color .15s ease, border-color .15s ease;
+  }
+  #micBtn:hover{ color: var(--cyan); border-color: var(--cyan-dim); }
+  #micBtn.active{ color:#001414; background:var(--cyan); border-color:var(--cyan); }
+  .wave.idle i{ animation-play-state: paused; height:4px !important; }
+
+  .wake-btn.armed{
+    color: var(--amber); border-color: rgba(255,178,56,0.4);
+    animation: wake-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes wake-pulse{
+    0%,100%{ box-shadow: 0 0 0 rgba(255,178,56,0); }
+    50%{ box-shadow: 0 0 10px rgba(255,178,56,0.35); }
+  }
+
+  .cmd-row{
+    display:flex; align-items:center; gap:10px;
+    border:1px solid var(--line); background: rgba(78,240,232,0.02);
+    margin-top:12px; padding:10px 16px;
+  }
+  .cmd-caret{ color: var(--cyan); font-family:'Share Tech Mono', monospace; font-size:15px; }
+  .cmd-input{
+    flex:1; background:transparent; border:none; outline:none;
+    color: var(--text); font-family:'Share Tech Mono', monospace; font-size:14px; letter-spacing:0.5px;
+  }
+  .cmd-input::placeholder{ color: var(--text-dimmer); }
+  .cmd-send{
+    font-family:'Orbitron', sans-serif; font-size:11px; letter-spacing:2px; color:var(--cyan);
+    background:transparent; border:1px solid var(--cyan-dim); padding:7px 14px; cursor:pointer;
+    text-transform:uppercase; transition: background .15s ease;
+  }
+  .cmd-send:hover{ background: rgba(78,240,232,0.12); }
+  .cmd-hint{
+    margin-top:10px; font-size:11px; letter-spacing:1px; color: var(--text-dimmer);
+    font-family:'Share Tech Mono', monospace;
+  }
+</style>
+</head>
+<body>
+<div class="grid-overlay"></div>
+
+<div class="frame">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <div class="name">A.R.I.A.</div>
+        <div class="sub">Autonomous Residential Interface</div>
+      </div>
+    </div>
+    <div class="status-cluster">
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="date-line" id="dateLine">-- --- ----</div>
+      <div class="sys-status">
+        <div><span id="uplink">●</span> UPLINK STABLE</div>
+        <div><span>6</span> SYSTEMS ONLINE</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="greeting">
+    <div>
+      <h1>Good evening, <span class="accent">Commander.</span></h1>
+      <p>All residential systems nominal. Perimeter secure, ambient climate holding at target. Say the word and I'll handle the rest.</p>
+    </div>
+    <div class="weather-chip">
+      <div>
+        <div class="temp">21°C</div>
+      </div>
+      <div>
+        <div class="wlabel">Outside · Clear</div>
+        <div class="wlabel">Wind 8 km/h</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="core-zone">
+    <div class="ring r1" id="ringTicks"></div>
+    <div class="ring r2"></div>
+    <div class="ring r3"></div>
+    <div class="callout cta">SYS.CORE // NOMINAL</div>
+    <div class="callout ctb">LOAD 12% · TEMP 38°C</div>
+    <div class="core-canvas-wrap">
+      <canvas id="coreCanvas" width="210" height="210"></canvas>
+      <div class="core-label">
+        <div class="status">Standing By</div>
+        <div class="pct">POWER 100%</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">Home Systems</div>
+  <div class="modules">
+
+    <div class="module" id="mod-security">
+      <div class="m-head">
+        <div class="m-title"><span class="dot" id="dot-security"></span>Security</div>
+        <svg class="m-icon" viewBox="0 0 24 24" fill="none" stroke="#4ef0e8" stroke-width="1.4"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
+      </div>
+      <div class="m-value" id="val-security">ARMED</div>
+      <div class="m-meta" id="meta-security">4 doors · 8 sensors · 0 breaches</div>
+      <div class="m-bar"><span id="bar-security" style="width:100%"></span></div>
+    </div>
+
+    <div class="module" id="mod-climate">
+      <div class="m-head">
+        <div class="m-title"><span class="dot"></span>Climate</div>
+        <svg class="m-icon" viewBox="0 0 24 24" fill="none" stroke="#4ef0e8" stroke-width="1.4"><path d="M12 2v20M8 6l4-4 4 4M8 18l4 4 4-4M2 12h20M6 8l-4 4 4 4M18 8l4 4-4 4"/></svg>
+      </div>
+      <div class="m-value" id="val-climate">22.5°</div>
+      <div class="m-meta" id="meta-climate">Target 22° · Humidity 41%</div>
+      <div class="m-bar"><span id="bar-climate" style="width:64%"></span></div>
+    </div>
+
+    <div class="module state-alert" id="mod-energy">
+      <div class="m-head">
+        <div class="m-title"><span class="dot amber"></span>Energy</div>
+        <svg class="m-icon" viewBox="0 0 24 24" fill="none" stroke="#ffb238" stroke-width="1.4"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+      </div>
+      <div class="m-value">4.8 kW</div>
+      <div class="m-meta">Above average · Solar 2.1 kW</div>
+      <div class="m-bar"><span style="width:78%"></span></div>
+    </div>
+
+    <div class="module" id="mod-lighting">
+      <div class="m-head">
+        <div class="m-title"><span class="dot" id="dot-lighting"></span>Lighting</div>
+        <svg class="m-icon" viewBox="0 0 24 24" fill="none" stroke="#4ef0e8" stroke-width="1.4"><path d="M9 21h6M10 19h4M12 3a6 6 0 00-3.5 10.9c.6.4.9 1.1.9 1.9v.2h5.2v-.2c0-.8.3-1.5.9-1.9A6 6 0 0012 3z"/></svg>
+      </div>
+      <div class="m-value" id="val-lighting">6 / 14</div>
+      <div class="m-meta" id="meta-lighting">Zones active · Evening scene</div>
+      <div class="m-bar"><span id="bar-lighting" style="width:43%"></span></div>
+    </div>
+
+    <div class="module">
+      <div class="m-head">
+        <div class="m-title"><span class="dot"></span>Access</div>
+        <svg class="m-icon" viewBox="0 0 24 24" fill="none" stroke="#4ef0e8" stroke-width="1.4"><path d="M12 11c1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3 1.3 3 3 3zM5 21c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg>
+      </div>
+      <div class="m-value">2</div>
+      <div class="m-meta">Occupants recognized · Front gate locked</div>
+      <div class="m-bar"><span style="width:100%"></span></div>
+    </div>
+
+    <div class="module state-off" id="mod-media">
+      <div class="m-head">
+        <div class="m-title"><span class="dot dim" id="dot-media"></span>Media</div>
+        <svg class="m-icon" viewBox="0 0 24 24" fill="none" stroke="#5c8892" stroke-width="1.4"><rect x="3" y="4" width="18" height="13" rx="1"/><path d="M8 21h8"/></svg>
+      </div>
+      <div class="m-value" id="val-media">IDLE</div>
+      <div class="m-meta" id="meta-media">Living room · No active stream</div>
+      <div class="m-bar"><span id="bar-media" style="width:0%"></span></div>
+    </div>
+
+  </div>
+
+  <div class="section-label">Voice Channel</div>
+  <div class="listen-strip">
+    <button class="lbl" id="micBtn" type="button">🎙 Tap to Speak</button>
+    <button class="lbl wake-btn" id="wakeBtn" type="button">🛌 Enable Wake Word</button>
+    <div class="wave" id="wave"></div>
+    <div class="say" id="sayLine">"...standing by for your command..."</div>
+  </div>
+
+  <form class="cmd-row" id="cmdForm">
+    <span class="cmd-caret">&gt;</span>
+    <input class="cmd-input" id="cmdInput" type="text" autocomplete="off"
+      placeholder="type a command — e.g. 'disarm security', 'set temperature to 20', 'lights off', 'status report'">
+    <button class="cmd-send" type="submit">Send</button>
+  </form>
+  <div class="cmd-hint">Try: status report · arm/disarm security · lights on/off · set temperature to 24 · play music · what time is it</div>
+  <div class="cmd-hint">Wake word armed? Just say <strong>"Wake up, Jarvis"</strong> followed by your command.</div>
+
+  <footer>A.R.I.A. Residential Build 4.2 &nbsp;·&nbsp; All systems local &amp; encrypted</footer>
+
+</div>
+
+<script>
+  // Clock
+  function pad(n){ return n.toString().padStart(2,'0'); }
+  function tick(){
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+    const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    document.getElementById('dateLine').textContent =
+      days[now.getDay()]+' '+now.getDate()+' '+months[now.getMonth()]+' '+now.getFullYear();
+  }
+  tick(); setInterval(tick, 1000);
+
+  // Ring ticks
+  const ringTicks = document.getElementById('ringTicks');
+  for(let i=0;i<48;i++){
+    const t = document.createElement('div');
+    t.className = 'tick';
+    t.style.transform = 'rotate(' + (i*(360/48)) + 'deg)';
+    ringTicks.appendChild(t);
+  }
+
+  // Voice waveform bars
+  const wave = document.getElementById('wave');
+  for(let i=0;i<40;i++){
+    const bar = document.createElement('i');
+    bar.style.animationDelay = (Math.random()*1.2)+'s';
+    bar.style.height = (4+Math.random()*10)+'px';
+    wave.appendChild(bar);
+  }
+
+  // Core canvas - pulsing reactor
+  const canvas = document.getElementById('coreCanvas');
+  const ctx = canvas.getContext('2d');
+  const cx = canvas.width/2, cy = canvas.height/2;
+  let t = 0;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    t += 0.02;
+
+    // outer glow disc
+    const pulse = 1 + Math.sin(t*1.4)*0.04;
+    const grad = ctx.createRadialGradient(cx,cy,10,cx,cy,90*pulse);
+    grad.addColorStop(0, 'rgba(78,240,232,0.55)');
+    grad.addColorStop(0.4, 'rgba(78,240,232,0.15)');
+    grad.addColorStop(1, 'rgba(78,240,232,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx,cy,90*pulse,0,Math.PI*2);
+    ctx.fill();
+
+    // segmented ring
+    const segs = 36;
+    for(let i=0;i<segs;i++){
+      const a0 = (i/segs)*Math.PI*2 + t*0.6;
+      const active = (Math.sin(t*2 + i*0.5) + 1)/2;
+      ctx.strokeStyle = 'rgba(78,240,232,' + (0.15+active*0.6) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx,cy,72, a0, a0+ (Math.PI*2/segs)*0.6);
+      ctx.stroke();
+    }
+
+    // inner core
+    const coreR = 34 + Math.sin(t*2)*2;
+    const coreGrad = ctx.createRadialGradient(cx,cy,0,cx,cy,coreR);
+    coreGrad.addColorStop(0, '#eafffe');
+    coreGrad.addColorStop(0.5, '#4ef0e8');
+    coreGrad.addColorStop(1, 'rgba(78,240,232,0)');
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(cx,cy,coreR,0,Math.PI*2);
+    ctx.fill();
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+
+  // ===================== A.R.I.A. COMMAND ENGINE =====================
+  const sayLine = document.getElementById('sayLine');
+  const coreStatus = document.querySelector('.core-label .status');
+
+  const state = {
+    security: true,      // armed
+    temp: 22.5,
+    target: 22,
+    lightsOn: 6,
+    lightsTotal: 14,
+    media: false
+  };
+
+  function speak(text){
+    sayLine.textContent = '"' + text + '"';
+    if('speechSynthesis' in window){
+      try{
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.98; u.pitch = 0.85; u.volume = 1;
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(v => /male|daniel|david|google uk english male/i.test(v.name));
+        if(preferred) u.voice = preferred;
+        window.speechSynthesis.speak(u);
+      }catch(e){ /* speech synthesis unavailable, text response still shown */ }
+    }
+  }
+
+  function setActive(isActive){
+    if(isActive){
+      coreStatus.textContent = 'Processing';
+    } else {
+      coreStatus.textContent = wakeModeOn ? 'Awaiting "Jarvis"' : 'Standing By';
+    }
+    wave.classList.toggle('idle', !isActive);
+  }
+
+  function updateSecurityUI(){
+    const armed = state.security;
+    document.getElementById('val-security').textContent = armed ? 'ARMED' : 'DISARMED';
+    document.getElementById('meta-security').textContent = armed
+      ? '4 doors · 8 sensors · 0 breaches' : '4 doors · 8 sensors · monitoring paused';
+    document.getElementById('bar-security').style.width = armed ? '100%' : '20%';
+    const mod = document.getElementById('mod-security');
+    const dot = document.getElementById('dot-security');
+    mod.classList.toggle('state-off', !armed);
+    dot.classList.toggle('dim', !armed);
+  }
+
+  function updateClimateUI(){
+    document.getElementById('val-climate').textContent = state.temp.toFixed(1) + '°';
+    document.getElementById('meta-climate').textContent = 'Target ' + state.target + '° · Humidity 41%';
+    const pct = Math.max(6, Math.min(100, ((state.temp) / 30) * 100));
+    document.getElementById('bar-climate').style.width = pct + '%';
+  }
+
+  function updateLightingUI(){
+    document.getElementById('val-lighting').textContent = state.lightsOn + ' / ' + state.lightsTotal;
+    document.getElementById('meta-lighting').textContent = state.lightsOn === 0
+      ? 'All zones dark' : (state.lightsOn === state.lightsTotal ? 'All zones active' : 'Zones active · Evening scene');
+    document.getElementById('bar-lighting').style.width = Math.round((state.lightsOn/state.lightsTotal)*100) + '%';
+    const dot = document.getElementById('dot-lighting');
+    dot.classList.toggle('dim', state.lightsOn === 0);
+  }
+
+  function updateMediaUI(){
+    document.getElementById('val-media').textContent = state.media ? 'PLAYING' : 'IDLE';
+    document.getElementById('meta-media').textContent = state.media
+      ? 'Living room · Streaming audio' : 'Living room · No active stream';
+    document.getElementById('bar-media').style.width = state.media ? '55%' : '0%';
+    document.getElementById('mod-media').classList.toggle('state-off', !state.media);
+    document.getElementById('dot-media').classList.toggle('dim', !state.media);
+  }
+
+  function timeString(){
+    const now = new Date();
+    let h = now.getHours(); const m = now.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if(h === 0) h = 12;
+    return h + ':' + pad(m) + ' ' + ampm;
+  }
+
+  function handleCommand(raw){
+    const cmd = raw.trim().toLowerCase();
+    if(!cmd) return;
+    setActive(true);
+    let response = "I didn't quite catch that. Try arming security, adjusting lights, or setting the temperature.";
+
+    if(/\b(disarm|stand down)\b/.test(cmd) && /security/.test(cmd) || /disarm security/.test(cmd)){
+      state.security = false; updateSecurityUI();
+      response = "Security disarmed. I'll keep a passive watch on the perimeter.";
+    } else if(/\barm\b/.test(cmd) && /security/.test(cmd)){
+      state.security = true; updateSecurityUI();
+      response = "Security armed. All entry points are monitored.";
+    } else if(/lights? (on|up)/.test(cmd) || /turn on.*light/.test(cmd)){
+      state.lightsOn = state.lightsTotal; updateLightingUI();
+      response = "Bringing all zones up to full brightness.";
+    } else if(/lights? (off|out)/.test(cmd) || /turn off.*light/.test(cmd) || /kill.*light/.test(cmd)){
+      state.lightsOn = 0; updateLightingUI();
+      response = "Lights off throughout the house.";
+    } else if(/dim/.test(cmd) && /light/.test(cmd)){
+      state.lightsOn = Math.max(1, Math.round(state.lightsTotal*0.3)); updateLightingUI();
+      response = "Dimming to an evening scene.";
+    } else if(/set (the )?temperature to (\d+)/.test(cmd) || /(\d+)\s*degrees/.test(cmd)){
+      const match = cmd.match(/(\d{2})/);
+      if(match){
+        state.target = parseInt(match[1], 10);
+        state.temp = state.target + (Math.random()*0.6 - 0.3);
+        updateClimateUI();
+        response = "Setting the target temperature to " + state.target + " degrees.";
+      }
+    } else if(/warm(er)? up|increase.*temp|raise.*temp/.test(cmd)){
+      state.target += 1; state.temp = state.target; updateClimateUI();
+      response = "Warming things up a couple of degrees.";
+    } else if(/cool(er)? down|decrease.*temp|lower.*temp/.test(cmd)){
+      state.target -= 1; state.temp = state.target; updateClimateUI();
+      response = "Cooling it down for you.";
+    } else if(/play.*music|start.*media|play something/.test(cmd)){
+      state.media = true; updateMediaUI();
+      response = "Playing something in the living room now.";
+    } else if(/stop.*music|pause.*media|stop.*media/.test(cmd)){
+      state.media = false; updateMediaUI();
+      response = "Stopping playback.";
+    } else if(/what.*time|current time/.test(cmd)){
+      response = "It's " + timeString() + ".";
+    } else if(/status report|system status|status check/.test(cmd)){
+      response = "Security is " + (state.security ? "armed" : "disarmed") + ", climate holding at "
+        + state.temp.toFixed(1) + " degrees, and " + state.lightsOn + " of " + state.lightsTotal + " light zones are active.";
+    } else if(/good (morning|evening|afternoon)|hello|hey aria|hi aria/.test(cmd)){
+      response = "Good to hear from you. All systems are nominal.";
+    } else if(/thank/.test(cmd)){
+      response = "Always happy to help.";
+    }
+
+    speak(response);
+    setTimeout(()=> setActive(false), 1400);
+  }
+
+  // Text command form
+  const cmdForm = document.getElementById('cmdForm');
+  const cmdInput = document.getElementById('cmdInput');
+  cmdForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    const val = cmdInput.value;
+    if(!val.trim()) return;
+    handleCommand(val);
+    cmdInput.value = '';
+  });
+
+  // Speech recognition (mic button)
+  const micBtn = document.getElementById('micBtn');
+  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognizing = false;
+  let recognizer = null;
+
+  if(SpeechRecognitionImpl){
+    recognizer = new SpeechRecognitionImpl();
+    recognizer.continuous = false;
+    recognizer.interimResults = false;
+    recognizer.lang = 'en-US';
+
+    recognizer.onstart = function(){
+      recognizing = true;
+      micBtn.classList.add('active');
+      micBtn.textContent = '● Listening…';
+      setActive(true);
+    };
+    recognizer.onresult = function(event){
+      const transcript = event.results[0][0].transcript;
+      handleCommand(transcript);
+    };
+    recognizer.onerror = function(){
+      speak("I didn't catch that — mic access may be blocked in this environment.");
+    };
+    recognizer.onend = function(){
+      recognizing = false;
+      micBtn.classList.remove('active');
+      micBtn.textContent = '🎙 Tap to Speak';
+    };
+
+    micBtn.addEventListener('click', function(){
+      if(recognizing){ recognizer.stop(); return; }
+      if(wakeModeOn){ stopWakeListening(); } // avoid two mics fighting over audio
+      try{ recognizer.start(); }
+      catch(e){ speak("Microphone couldn't start. Try the text command field instead."); }
+    });
+  } else {
+    micBtn.addEventListener('click', function(){
+      speak("Voice recognition isn't supported in this browser. Use the text command field below.");
+    });
+    micBtn.title = "Voice recognition unsupported here — use the text field";
+  }
+
+  // ===================== WAKE WORD ENGINE =====================
+  // Listens continuously in the background for "wake up jarvis" / "hey jarvis" / "jarvis",
+  // then either runs the command spoken right after it, or waits a few seconds for one.
+  const wakeBtn = document.getElementById('wakeBtn');
+  const wakePhrase = /\b(wake up,? jarvis|hey jarvis|ok jarvis|okay jarvis|jarvis)\b/i;
+  let wakeModeOn = false;
+  let awaitingCommand = false;
+  let awaitTimeout = null;
+  let wakeRecognizer = null;
+
+  function buildWakeRecognizer(){
+    const r = new SpeechRecognitionImpl();
+    r.continuous = true;
+    r.interimResults = false;
+    r.lang = 'en-US';
+
+    r.onresult = function(event){
+      for(let i = event.resultIndex; i < event.results.length; i++){
+        if(!event.results[i].isFinal) continue;
+        processWakeTranscript(event.results[i][0].transcript.trim());
+      }
+    };
+    r.onerror = function(e){
+      // no-speech / aborted are routine while idling — just let onend restart it
+    };
+    r.onend = function(){
+      if(wakeModeOn){
+        try{ r.start(); } catch(e){ /* already starting */ }
+      }
+    };
+    return r;
+  }
+
+  function processWakeTranscript(transcript){
+    const lower = transcript.toLowerCase();
+
+    if(awaitingCommand){
+      awaitingCommand = false;
+      clearTimeout(awaitTimeout);
+      handleCommand(transcript);
+      return;
+    }
+
+    const match = lower.match(wakePhrase);
+    if(match){
+      const idx = lower.indexOf(match[0]) + match[0].length;
+      const remainder = transcript.slice(idx).replace(/^[,.\s-]+/, '');
+      if(remainder.length > 2){
+        handleCommand(remainder);
+      } else {
+        speak("Yes? I'm listening.");
+        awaitingCommand = true;
+        clearTimeout(awaitTimeout);
+        awaitTimeout = setTimeout(()=>{ awaitingCommand = false; }, 6000);
+      }
+    }
+  }
+
+  function startWakeListening(){
+    if(!SpeechRecognitionImpl){
+      speak("Wake word listening isn't supported in this browser.");
+      return;
+    }
+    if(!wakeRecognizer) wakeRecognizer = buildWakeRecognizer();
+    try{ wakeRecognizer.start(); } catch(e){ /* may already be running */ }
+    wakeModeOn = true;
+    wakeBtn.classList.add('armed');
+    wakeBtn.textContent = '● Wake Word Armed';
+    setActive(false);
+  }
+
+  function stopWakeListening(){
+    wakeModeOn = false;
+    awaitingCommand = false;
+    clearTimeout(awaitTimeout);
+    if(wakeRecognizer){ try{ wakeRecognizer.stop(); } catch(e){} }
+    wakeBtn.classList.remove('armed');
+    wakeBtn.textContent = '🛌 Enable Wake Word';
+    setActive(false);
+  }
+
+  wakeBtn.addEventListener('click', function(){
+    if(wakeModeOn){ stopWakeListening(); }
+    else {
+      if(recognizing){ recognizer.stop(); } // don't run both mics at once
+      startWakeListening();
+    }
+  });
+
+  // idle wave by default until a command is processed
+  setActive(false);
+
+  // Register service worker for offline caching / installability
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {
+        // fine to ignore — app still works without offline caching
+      });
+    });
+  }
+</script>
+</body>
+</html>
